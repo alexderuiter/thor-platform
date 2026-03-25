@@ -1,0 +1,345 @@
+// =============================================================================
+// THOR Platform Database Schema
+// Key design: AVG and WPG data in SEPARATE schemas within the same database
+// This enforces data isolation at the database level (WPG-1, PRIV-34)
+// =============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["avg", "wpg", "shared"]
+}
+
+// =============================================================================
+// SHARED SCHEMA - Non-personal reference data
+// =============================================================================
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  naam      String
+  role      String   // UserRole enum
+  badgeNr   String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  avgZaken       AvgZaak[]
+  wpgZaken       WpgZaak[]
+  wpgAuditLogs   WpgAuditLog[]
+  avgAuditLogs   AvgAuditLog[]
+  workflowTaken  WorkflowTaak[]
+
+  @@schema("shared")
+}
+
+model Feitcode {
+  id          String @id @default(uuid())
+  code        String @unique
+  omschrijving String
+  categorie   String
+  thema       String // HandhavingsThema
+  wettekst    String?
+  boeteBedrag Float?
+  active      Boolean @default(true)
+
+  avgZaken AvgZaak[]
+  wpgZaken WpgZaak[]
+
+  @@schema("shared")
+}
+
+model Locatie {
+  id          String  @id @default(uuid())
+  straatnaam  String
+  huisnummer  String?
+  postcode    String?
+  woonplaats  String  @default("Amsterdam")
+  latitude    Float?
+  longitude   Float?
+  bagId       String? // BAG reference (TH-36)
+  toelichting String?
+
+  avgZaken AvgZaak[]
+  wpgZaken WpgZaak[]
+
+  @@schema("shared")
+}
+
+model Werkopdracht {
+  id          String   @id @default(uuid())
+  titel       String
+  omschrijving String?
+  thema       String   // HandhavingsThema
+  gebiedGeoJson String? // GeoJSON for map display (MA-5)
+  startDatum  DateTime
+  eindDatum   DateTime?
+  status      String   @default("OPEN")
+  createdAt   DateTime @default(now())
+
+  avgZaken AvgZaak[]
+  wpgZaken WpgZaak[]
+
+  @@schema("shared")
+}
+
+// =============================================================================
+// AVG SCHEMA - Bestuursrechtelijke gegevens
+// Waarnemingen, constateringen, bestuurlijke boetes, LoD, LoB
+// =============================================================================
+
+model AvgZaak {
+  id                String   @id @default(uuid())
+  zaakNummer        String   @unique @default(uuid())
+  registratieType   String   // RegistrationType (AVG types only)
+  status            String   @default("CONCEPT") // ZaakStatus
+  thema             String   // HandhavingsThema
+  omschrijving      String?
+  startDatum        DateTime @default(now())
+  eindDatum         DateTime?
+
+  // Relations
+  locatieId         String?
+  locatie           Locatie?       @relation(fields: [locatieId], references: [id])
+  feitcodeId        String?
+  feitcode          Feitcode?      @relation(fields: [feitcodeId], references: [id])
+  medewerker        User           @relation(fields: [medewerkerId], references: [id])
+  medewerkerId      String
+  werkopdracht      Werkopdracht?  @relation(fields: [werkopdrachtId], references: [id])
+  werkopdrachtId    String?
+
+  // Child records
+  betrokkenen       AvgBetrokkene[]
+  documenten        AvgDocument[]
+  notities          AvgNotitie[]
+  statusWijzigingen AvgStatusWijziging[]
+
+  // Linked cases
+  parentZaakId      String?
+  parentZaak        AvgZaak?  @relation("ZaakHierarchie", fields: [parentZaakId], references: [id])
+  childZaken        AvgZaak[] @relation("ZaakHierarchie")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@schema("avg")
+}
+
+model AvgBetrokkene {
+  id            String  @id @default(uuid())
+  zaakId        String
+  zaak          AvgZaak @relation(fields: [zaakId], references: [id], onDelete: Cascade)
+  rol           String  // BetrokkeneRol
+  voornaam      String?
+  tussenvoegsel String?
+  achternaam    String?
+  geboortedatum DateTime?
+  bsn           String? // Encrypted at rest (PRIV-44)
+  kenteken      String?
+  kvkNummer     String?
+  adres         String?
+  woonplaats    String?
+
+  @@schema("avg")
+}
+
+model AvgDocument {
+  id            String   @id @default(uuid())
+  zaakId        String
+  zaak          AvgZaak  @relation(fields: [zaakId], references: [id], onDelete: Cascade)
+  titel         String
+  documentType  String   // e.g. "FOTO", "BRIEF", "RAPPORT", "BOETE"
+  bestandsnaam  String
+  mimeType      String
+  opslag        String   // Storage path/reference
+  status        String   @default("CONCEPT") // CONCEPT, DEFINITIEF, VERSTUURD
+  versie        Int      @default(1)
+  createdAt     DateTime @default(now())
+
+  @@schema("avg")
+}
+
+model AvgNotitie {
+  id        String   @id @default(uuid())
+  zaakId    String
+  zaak      AvgZaak  @relation(fields: [zaakId], references: [id], onDelete: Cascade)
+  inhoud    String
+  auteur    String
+  createdAt DateTime @default(now())
+
+  @@schema("avg")
+}
+
+model AvgStatusWijziging {
+  id        String   @id @default(uuid())
+  zaakId    String
+  zaak      AvgZaak  @relation(fields: [zaakId], references: [id], onDelete: Cascade)
+  vanStatus String
+  naarStatus String
+  reden     String?
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@schema("avg")
+}
+
+model AvgAuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String   // CREATE, READ, UPDATE, DELETE
+  entity    String   // e.g. "AvgZaak", "AvgBetrokkene"
+  entityId  String
+  details   String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@schema("avg")
+}
+
+// =============================================================================
+// WPG SCHEMA - Strafrechtelijke / politiegegevens
+// Combibonnen, processen-verbaal, aanhoudingen, tikverbalen
+// Stricter access control, separate audit trail (WPG-3, WPG-5)
+// =============================================================================
+
+model WpgZaak {
+  id                String   @id @default(uuid())
+  zaakNummer        String   @unique @default(uuid())
+  registratieType   String   // RegistrationType (WPG types only)
+  wpgArtikel        String   // WpgArticle - determines retention rules
+  status            String   @default("CONCEPT")
+  thema             String
+  omschrijving      String?
+  startDatum        DateTime @default(now())
+  eindDatum         DateTime?
+
+  // Cautie fields (TH-3)
+  cautieGegeven     Boolean  @default(false)
+  rechtBijstand     Boolean  @default(false)
+  rechtVertolking   Boolean  @default(false)
+  tolkNaam          String?
+  verhoortaal       String?  @default("Nederlands")
+
+  // Relations
+  locatieId         String?
+  locatie           Locatie?       @relation(fields: [locatieId], references: [id])
+  feitcodeId        String?
+  feitcode          Feitcode?      @relation(fields: [feitcodeId], references: [id])
+  medewerker        User           @relation(fields: [medewerkerId], references: [id])
+  medewerkerId      String
+  werkopdracht      Werkopdracht?  @relation(fields: [werkopdrachtId], references: [id])
+  werkopdrachtId    String?
+
+  // Child records
+  betrokkenen       WpgBetrokkene[]
+  documenten        WpgDocument[]
+  verstrekkingen    WpgVerstrekking[]
+
+  // Retention management (WPG-10 through WPG-16)
+  retentionStartDate DateTime @default(now())
+  isAfgeschermd      Boolean  @default(false)
+  vernietigDatum     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@schema("wpg")
+}
+
+model WpgBetrokkene {
+  id            String  @id @default(uuid())
+  zaakId        String
+  zaak          WpgZaak @relation(fields: [zaakId], references: [id], onDelete: Cascade)
+  rol           String
+  voornaam      String?
+  tussenvoegsel String?
+  achternaam    String?
+  geboortedatum DateTime?
+  bsn           String? // Encrypted
+  kenteken      String?
+  adres         String?
+  woonplaats    String?
+  nationaliteit String?
+  idType        String?  // Type identiteitsbewijs
+  idNummer      String?  // Documentnummer
+
+  @@schema("wpg")
+}
+
+model WpgDocument {
+  id            String   @id @default(uuid())
+  zaakId        String
+  zaak          WpgZaak  @relation(fields: [zaakId], references: [id], onDelete: Cascade)
+  titel         String
+  documentType  String
+  bestandsnaam  String
+  mimeType      String
+  opslag        String
+  status        String   @default("CONCEPT")
+  versie        Int      @default(1)
+  createdAt     DateTime @default(now())
+
+  @@schema("wpg")
+}
+
+// WPG-4: Verstrekkingen logging - who received what data and why
+model WpgVerstrekking {
+  id                    String   @id @default(uuid())
+  zaakId                String
+  zaak                  WpgZaak  @relation(fields: [zaakId], references: [id])
+  ontvangerOrganisatie  String   // e.g. "Politie", "OM", "Incidentenloket"
+  ontvangerPersoon      String?
+  grondslag             String   // Legal basis for sharing
+  omschrijving          String   // What was shared
+  gegevensOmschrijving  String   // Which specific data elements
+  createdAt             DateTime @default(now())
+
+  @@schema("wpg")
+}
+
+// WPG-5: Comprehensive audit log for all WPG data access
+model WpgAuditLog {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  userRole    String
+  action      String   // CREATE, READ, UPDATE, DELETE, VERSTREKKING, SEARCH
+  entity      String
+  entityId    String
+  wpgArtikel  String?
+  details     String
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@schema("wpg")
+}
+
+// =============================================================================
+// SHARED SCHEMA - Workflow
+// =============================================================================
+
+model WorkflowTaak {
+  id            String   @id @default(uuid())
+  zaakId        String   // Can reference either AVG or WPG zaak
+  zaakType      String   // "AVG" or "WPG"
+  type          String   // e.g. "KWALITEITSCONTROLE", "JURIDISCHE_TOETS", "EXPORT"
+  titel         String
+  omschrijving  String?
+  status        String   @default("OPEN") // OPEN, IN_BEHANDELING, AFGEROND
+  toegewezenAan String?
+  user          User?    @relation(fields: [toegewezenAan], references: [id])
+  prioriteit    Int      @default(0)
+  deadline      DateTime?
+  resultaat     String?  // GOEDGEKEURD, AFGEKEURD, etc.
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@schema("shared")
+}

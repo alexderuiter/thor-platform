@@ -1,0 +1,24 @@
+{
+  "name": "thor-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Digitaal Platform Toezicht & Handhaving - Gemeente Amsterdam",
+  "scripts": {
+    "dev": "docker compose up -d postgres && concurrently \"npm run dev:api\" \"npm run dev:backoffice\"",
+    "dev:api": "cd packages/api && npx tsx watch src/index.ts",
+    "dev:backoffice": "cd packages/backoffice && npm run dev",
+    "build": "npm run build:api && npm run build:backoffice",
+    "build:api": "cd packages/api && npx tsc",
+    "build:backoffice": "cd packages/backoffice && npm run build",
+    "db:migrate": "cd packages/api && npx prisma migrate dev",
+    "db:seed": "cd packages/api && npx tsx src/db/seed.ts",
+    "test": "cd packages/api && npx vitest run"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.7.0"
+  }
+}
