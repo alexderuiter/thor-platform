@@ -37,7 +37,7 @@ router.get("/taken", async (req: Request, res: Response) => {
  */
 router.patch("/taken/:id", async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     const { status, resultaat } = req.body as { status: string; resultaat?: string };
     const user = req.user!;
 

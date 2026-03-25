@@ -233,7 +233,7 @@ router.get("/", async (req: Request, res: Response) => {
  */
 router.get("/:id", async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     const user = req.user!;
 
     // Try AVG first, then WPG
@@ -303,7 +303,7 @@ router.get("/:id", async (req: Request, res: Response) => {
  */
 router.patch("/:id/status", async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     const { status, reden } = req.body as { status: ZaakStatus; reden?: string };
     const user = req.user!;
 
