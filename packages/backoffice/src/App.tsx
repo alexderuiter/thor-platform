@@ -11,21 +11,13 @@ export default function App() {
   const [currentUser, setUser] = useState<{ id: string; naam: string; role: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch users on mount (from seed data)
+  // Fetch users from API for demo login selector
+  // In production: SSO via Amsterdam IAM
   useEffect(() => {
-    fetch("/api/health")
+    fetch("/api/users")
       .then((r) => r.json())
-      .then(() => {
-        // For the MVP, we hardcode demo users matching the seed
-        // In production this comes from IAM/SSO
-        const demoUsers = [
-          { id: "", naam: "Jan de Vries", role: "BOA" },
-          { id: "", naam: "Maria Jansen", role: "TOEZICHTHOUDER" },
-          { id: "", naam: "Ahmed Hassan", role: "KWC" },
-          { id: "", naam: "Lisa Bakker", role: "AANVOERDER" },
-          { id: "", naam: "Peter Smit", role: "JURIST" },
-        ];
-        setUsers(demoUsers);
+      .then((data) => {
+        setUsers(data);
         setLoading(false);
       })
       .catch(() => {

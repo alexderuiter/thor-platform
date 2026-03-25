@@ -23,6 +23,16 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", service: "thor-api", version: "0.1.0" });
 });
 
+// Demo: list users for login selector (no auth required)
+// In production: removed, authentication via SSO
+app.get("/api/users", async (_req, res) => {
+  const users = await prisma.user.findMany({
+    select: { id: true, naam: true, role: true, email: true },
+    orderBy: { naam: "asc" },
+  });
+  res.json(users);
+});
+
 // Auth middleware for all /api routes
 app.use("/api", authenticate);
 
