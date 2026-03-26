@@ -83,6 +83,9 @@ export default function App() {
           <NavLink to="/" end>Zaken</NavLink>
           <NavLink to="/zaken/nieuw">+ Nieuwe registratie</NavLink>
           <NavLink to="/werkvoorraad">Werkvoorraad</NavLink>
+          {currentUser.role === "BEHEERDER" && (
+            <NavLink to="/admin/audit">Audit Log</NavLink>
+          )}
         </nav>
         <div className="sidebar-user" style={{ position: "absolute", bottom: 0, width: 260 }}>
           <div>{currentUser.naam}</div>

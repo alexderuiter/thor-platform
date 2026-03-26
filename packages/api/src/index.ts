@@ -5,6 +5,8 @@ import { authenticate } from "./middleware/auth.js";
 import zakenRouter from "./routes/zaken.js";
 import workflowRouter from "./routes/workflow.js";
 import werkopdrachtenRouter from "./routes/werkopdrachten.js";
+import documentenRouter from "./routes/documenten.js";
+import adminRouter from "./routes/audit.js";
 import { prisma } from "./db/client.js";
 
 const app = express();
@@ -36,10 +38,12 @@ app.get("/api/users", async (_req, res) => {
 // Auth middleware for all /api routes
 app.use("/api", authenticate);
 
-// Routes
+// Routes - documenten first (more specific paths match before /:id catch-all)
+app.use("/api/zaken", documentenRouter);
 app.use("/api/zaken", zakenRouter);
 app.use("/api/workflow", workflowRouter);
 app.use("/api/werkopdrachten", werkopdrachtenRouter);
+app.use("/api/admin", adminRouter);
 
 // Current user info
 app.get("/api/me", (req, res) => {

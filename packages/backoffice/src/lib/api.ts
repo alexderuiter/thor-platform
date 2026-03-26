@@ -113,6 +113,89 @@ export const workflowApi = {
   werkvoorraad: () => request<WorkflowTaak[]>("/workflow/werkvoorraad"),
 };
 
+// --- Documents ---
+export interface Document {
+  id: string;
+  zaakId: string;
+  titel: string;
+  documentType: string;
+  bestandsnaam: string;
+  mimeType: string;
+  status: string;
+  createdAt: string;
+}
+
+export const documentApi = {
+  list: (zaakId: string) => request<Document[]>(`/zaken/${zaakId}/documenten`),
+
+  upload: async (zaakId: string, file: File, titel: string, documentType: string): Promise<Document> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("titel", titel);
+    formData.append("documentType", documentType);
+
+    const res = await fetch(`${API_BASE}/zaken/${zaakId}/documenten`, {
+      method: "POST",
+      headers: {
+        "X-User-Id": currentUserId,
+      },
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(error.error || `HTTP ${res.status}`);
+    }
+
+    return res.json();
+  },
+
+  downloadUrl: (zaakId: string, docId: string) =>
+    `${API_BASE}/zaken/${zaakId}/documenten/${docId}/download`,
+};
+
+// --- Audit Logs ---
+export interface AuditLogEntry {
+  id: string;
+  userId: string;
+  userRole?: string;
+  action: string;
+  entity: string;
+  entityId: string;
+  wpgArtikel?: string;
+  details: string;
+  ipAddress?: string;
+  createdAt: string;
+  user?: { id: string; naam: string; role: string };
+}
+
+export interface AuditLogResponse {
+  results: AuditLogEntry[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export const auditApi = {
+  wpgLogs: (params?: { page?: number; limit?: number; dateFrom?: string; dateTo?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.set("page", String(params.page));
+    if (params?.limit) searchParams.set("limit", String(params.limit));
+    if (params?.dateFrom) searchParams.set("dateFrom", params.dateFrom);
+    if (params?.dateTo) searchParams.set("dateTo", params.dateTo);
+    return request<AuditLogResponse>(`/admin/audit/wpg?${searchParams.toString()}`);
+  },
+
+  avgLogs: (params?: { page?: number; limit?: number; dateFrom?: string; dateTo?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.set("page", String(params.page));
+    if (params?.limit) searchParams.set("limit", String(params.limit));
+    if (params?.dateFrom) searchParams.set("dateFrom", params.dateFrom);
+    if (params?.dateTo) searchParams.set("dateTo", params.dateTo);
+    return request<AuditLogResponse>(`/admin/audit/avg?${searchParams.toString()}`);
+  },
+};
+
 // --- Users ---
 export interface User {
   id: string;

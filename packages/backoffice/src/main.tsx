@@ -6,6 +6,7 @@ import ZakenOverzicht from "./pages/ZakenOverzicht";
 import ZaakDetail from "./pages/ZaakDetail";
 import NieuweZaak from "./pages/NieuweZaak";
 import Werkvoorraad from "./pages/Werkvoorraad";
+import AuditLog from "./pages/AuditLog";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -18,6 +19,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="zaken/nieuw" element={<NieuweZaak />} />
           <Route path="zaken/:id" element={<ZaakDetail />} />
           <Route path="werkvoorraad" element={<Werkvoorraad />} />
+          <Route path="admin/audit" element={<AuditLog />} />
         </Route>
       </Routes>
     </BrowserRouter>

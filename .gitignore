@@ -4,3 +4,4 @@ dist/
 *.env.local
 .DS_Store
 packages/api/prisma/migrations/
+packages/api/uploads/

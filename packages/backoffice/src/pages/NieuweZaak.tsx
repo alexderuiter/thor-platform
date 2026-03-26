@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { zakenApi } from "../lib/api";
+import AddressSearch from "../components/AddressSearch";
 
 const REGISTRATION_TYPES = [
   { value: "WAARNEMING", label: "Waarneming", regime: "AVG" },
@@ -54,6 +55,8 @@ export default function NieuweZaak() {
     },
     betrokkenen: [{ rol: "OVERTREDER", voornaam: "", achternaam: "", kenteken: "" }],
     cautieGegeven: false,
+    rechtBijstand: false,
+    rechtVertolking: false,
   });
 
   const selectedType = REGISTRATION_TYPES.find((t) => t.value === form.registratieType);
@@ -63,6 +66,22 @@ export default function NieuweZaak() {
     e.preventDefault();
     setSaving(true);
     setError(null);
+
+    if (!form.locatie.straatnaam) {
+      setError("Selecteer een adres uit de zoekresultaten");
+      setSaving(false);
+      return;
+    }
+
+    // Validate betrokkenen: each must have at least voornaam, achternaam, or kenteken
+    const invalidBetrokkenen = form.betrokkenen.some(
+      (b) => !b.voornaam.trim() && !b.achternaam.trim() && !b.kenteken.trim()
+    );
+    if (invalidBetrokkenen) {
+      setError("Elke betrokkene moet minimaal een voornaam, achternaam of kenteken hebben");
+      setSaving(false);
+      return;
+    }
 
     try {
       const zaak = await zakenApi.create({
@@ -139,56 +158,79 @@ export default function NieuweZaak() {
                 />
                 Cautie is gegeven
               </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, marginBottom: 4 }}>
+                <input
+                  type="checkbox"
+                  checked={form.rechtBijstand}
+                  onChange={(e) => setForm({ ...form, rechtBijstand: e.target.checked })}
+                />
+                Recht op bijstand is medegedeeld
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, marginBottom: 4 }}>
+                <input
+                  type="checkbox"
+                  checked={form.rechtVertolking}
+                  onChange={(e) => setForm({ ...form, rechtVertolking: e.target.checked })}
+                />
+                Recht op vertolking is medegedeeld
+              </label>
             </div>
           )}
         </div>
 
         <div className="card">
           <h3 style={{ marginBottom: 16 }}>Locatie</h3>
-          <div className="form-row">
-            <div className="form-group">
-              <label>Straatnaam *</label>
-              <input
-                type="text"
-                required
-                value={form.locatie.straatnaam}
-                onChange={(e) => setForm({ ...form, locatie: { ...form.locatie, straatnaam: e.target.value } })}
-                placeholder="bijv. Middenweg"
-              />
+          <AddressSearch
+            onSelect={(addr) =>
+              setForm({
+                ...form,
+                locatie: {
+                  straatnaam: addr.straatnaam,
+                  huisnummer: addr.huisnummer,
+                  postcode: addr.postcode,
+                  woonplaats: addr.woonplaats,
+                },
+              })
+            }
+          />
+          {form.locatie.straatnaam && (
+            <div style={{ marginTop: 12, padding: 12, background: "#f0fdf4", borderRadius: "var(--radius)", fontSize: 13 }}>
+              <strong>Geselecteerd:</strong>{" "}
+              {form.locatie.straatnaam} {form.locatie.huisnummer}
+              {form.locatie.postcode && `, ${form.locatie.postcode}`}
+              {form.locatie.woonplaats && ` ${form.locatie.woonplaats}`}
             </div>
-            <div className="form-group">
-              <label>Huisnummer</label>
-              <input
-                type="text"
-                value={form.locatie.huisnummer}
-                onChange={(e) => setForm({ ...form, locatie: { ...form.locatie, huisnummer: e.target.value } })}
-              />
-            </div>
-          </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label>Postcode</label>
-              <input
-                type="text"
-                value={form.locatie.postcode}
-                onChange={(e) => setForm({ ...form, locatie: { ...form.locatie, postcode: e.target.value } })}
-              />
-            </div>
-            <div className="form-group">
-              <label>Woonplaats</label>
-              <input
-                type="text"
-                value={form.locatie.woonplaats}
-                onChange={(e) => setForm({ ...form, locatie: { ...form.locatie, woonplaats: e.target.value } })}
-              />
-            </div>
-          </div>
+          )}
         </div>
 
         <div className="card">
           <h3 style={{ marginBottom: 16 }}>Betrokkene(n)</h3>
+          <p style={{ fontSize: 13, color: "var(--color-text-muted)", marginBottom: 16 }}>
+            Vul per betrokkene minimaal een voornaam, achternaam of kenteken in.
+          </p>
           {form.betrokkenen.map((b, i) => (
             <div key={i} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: "1px solid var(--color-border)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-muted)" }}>Betrokkene {i + 1}</span>
+                {i > 0 && (
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    style={{ fontSize: 12, padding: "4px 10px" }}
+                    onClick={() => {
+                      const updated = form.betrokkenen.filter((_, idx) => idx !== i);
+                      setForm({ ...form, betrokkenen: updated });
+                    }}
+                  >
+                    Verwijderen
+                  </button>
+                )}
+              </div>
+              {!b.voornaam.trim() && !b.achternaam.trim() && !b.kenteken.trim() && (
+                <div style={{ fontSize: 12, color: "var(--color-secondary)", marginBottom: 8 }}>
+                  Vul minimaal een voornaam, achternaam of kenteken in
+                </div>
+              )}
               <div className="form-row">
                 <div className="form-group">
                   <label>Rol</label>

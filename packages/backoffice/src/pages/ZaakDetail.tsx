@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { zakenApi, type Zaak } from "../lib/api";
+import { zakenApi, documentApi, type Zaak, type Document } from "../lib/api";
 
 export default function ZaakDetail() {
   const { id } = useParams<{ id: string }>();
@@ -8,15 +8,43 @@ export default function ZaakDetail() {
   const [zaak, setZaak] = useState<Zaak | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [documenten, setDocumenten] = useState<Document[]>([]);
+  const [showUploadForm, setShowUploadForm] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadTitel, setUploadTitel] = useState("");
+  const [uploadType, setUploadType] = useState("OVERIG");
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (!id) return;
     zakenApi
       .get(id)
-      .then(setZaak)
+      .then((z) => {
+        setZaak(z);
+        return documentApi.list(id);
+      })
+      .then(setDocumenten)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [id]);
+
+  const handleUpload = async () => {
+    if (!id || !uploadFile) return;
+    setUploading(true);
+    try {
+      await documentApi.upload(id, uploadFile, uploadTitel || uploadFile.name, uploadType);
+      const docs = await documentApi.list(id);
+      setDocumenten(docs);
+      setShowUploadForm(false);
+      setUploadFile(null);
+      setUploadTitel("");
+      setUploadType("OVERIG");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Fout bij uploaden");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleStatusChange = async (newStatus: string) => {
     if (!id) return;
@@ -120,6 +148,10 @@ export default function ZaakDetail() {
                 <div className="label">Recht op bijstand medegedeeld</div>
                 <div className="value">{(zaak as any).rechtBijstand ? "Ja" : "Nee"}</div>
               </div>
+              <div className="detail-field">
+                <div className="label">Recht op vertolking medegedeeld</div>
+                <div className="value">{(zaak as any).rechtVertolking ? "Ja" : "Nee"}</div>
+              </div>
             </div>
           )}
         </div>
@@ -203,21 +235,82 @@ export default function ZaakDetail() {
           )}
 
           {/* Documents */}
-          {zaak.documenten && (
-            <div className="card">
-              <h3 style={{ marginBottom: 16, fontSize: 16 }}>Documenten</h3>
-              {zaak.documenten.length > 0 ? (
-                zaak.documenten.map((doc) => (
-                  <div key={doc.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--color-border)" }}>
-                    <span>{doc.titel}</span>
-                    <span className="badge badge-status">{doc.status}</span>
-                  </div>
-                ))
-              ) : (
-                <p style={{ color: "var(--color-text-muted)", fontSize: 13 }}>Geen documenten</p>
-              )}
+          <div className="card">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ fontSize: 16 }}>Documenten</h3>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setShowUploadForm(!showUploadForm)}
+              >
+                {showUploadForm ? "Annuleren" : "+ Document uploaden"}
+              </button>
             </div>
-          )}
+
+            {showUploadForm && (
+              <div style={{ marginBottom: 16, padding: 16, background: "#f9fafb", borderRadius: "var(--radius)" }}>
+                <div className="form-group" style={{ marginBottom: 12 }}>
+                  <label>Bestand</label>
+                  <input
+                    type="file"
+                    onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                    style={{ fontSize: 13 }}
+                  />
+                </div>
+                <div className="form-row" style={{ marginBottom: 12 }}>
+                  <div className="form-group">
+                    <label>Titel</label>
+                    <input
+                      type="text"
+                      value={uploadTitel}
+                      onChange={(e) => setUploadTitel(e.target.value)}
+                      placeholder="Titel van het document"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Type</label>
+                    <select value={uploadType} onChange={(e) => setUploadType(e.target.value)}>
+                      <option value="FOTO">Foto</option>
+                      <option value="RAPPORT">Rapport</option>
+                      <option value="PROCES_VERBAAL">Proces-verbaal</option>
+                      <option value="OVERIG">Overig</option>
+                    </select>
+                  </div>
+                </div>
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={handleUpload}
+                  disabled={!uploadFile || uploading}
+                >
+                  {uploading ? "Uploaden..." : "Uploaden"}
+                </button>
+              </div>
+            )}
+
+            {documenten.length > 0 ? (
+              documenten.map((doc) => (
+                <div key={doc.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--color-border)" }}>
+                  <div>
+                    <div style={{ fontWeight: 500 }}>{doc.titel}</div>
+                    <div style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
+                      {doc.bestandsnaam} - {new Date(doc.createdAt).toLocaleString("nl-NL")}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <span className="badge badge-status">{doc.documentType.replace(/_/g, " ")}</span>
+                    <a
+                      href={documentApi.downloadUrl(zaak.id, doc.id)}
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: 12, padding: "2px 8px", textDecoration: "none" }}
+                    >
+                      Download
+                    </a>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p style={{ color: "var(--color-text-muted)", fontSize: 13 }}>Geen documenten</p>
+            )}
+          </div>
         </div>
       </div>
     </div>
